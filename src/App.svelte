@@ -52,14 +52,17 @@
 </div>
 <br />
 
-<!-- <button
-on:click={() => {
-  send({
-    type: "EXPORT_MACHINE",
-  });
-}}
+<button
+  on:click={() => {
+    send({
+      type: "EXPORT_MACHINE",
+    });
+  }}
 >
-Export State
-</button> -->
+  Export State
+</button>
+
+<p>{$state.context.code}</p>
+
 <style>
 </style>

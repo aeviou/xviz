@@ -22,6 +22,21 @@ class State {
     this.on.push({ event: eventName, target: targetState });
   }
 
+  deleteTransition(event) {
+    // for (var i = 0; i < this.on.length; i++) {
+    //   // if (this.on[i].eventName === eventName) {
+    //   //   this.on.splice(i, 1);
+    //   // }
+    // }
+    for (let each of this.on) {
+      if (each.event === event) {
+        const index = this.on.indexOf(each);
+        this.on.splice(index, 1);
+        return;
+      }
+    } // If it goes through, it means that we don't handle an event with that name in this state.
+  }
+
   addState(newState) {
     if (this.states.length === 0) {
       this.initial = newState.id;
@@ -45,6 +60,7 @@ class Machine {
     this.states = [];
     this.flat_states = {};
     this.events = [];
+    this.code = "";
   }
 
   findState(id) {
@@ -68,9 +84,55 @@ class Machine {
     return null;
   }
 
+  getStateString(currentState) {
+    let stateString = "";
+    if (currentState.on && currentState.on.length > 0) {
+      console.log("on!");
+      let allOn = "";
+      for (let each of currentState.on) {
+        let target = each.event + ": '" + each.target + "',";
+        allOn += target;
+      }
+      let resultantOn = "on: {" + allOn + "},";
+      stateString += resultantOn;
+    }
+    if (currentState.states.length > 0) {
+      for (let innerState of currentState.states) {
+        stateString += this.getStateString(innerState);
+      }
+    }
+    if (currentState.states.length > 1) {
+      stateString = "states:{" + stateString + "},";
+    }
+    if (currentState.initial && !currentState.context) {
+      //Don't do this for the parent obj
+      stateString = "initial: '" + currentState.initial + "'," + stateString;
+    }
+    if (!currentState.context) {
+      //If it has context it means that it's the parent machine
+      //And therefor it won't have an id
+      stateString = currentState.id + ":{" + stateString + "},";
+    }
+    return stateString;
+  }
+
   exportMachine() {
-    let output = "";
-    output += "id: mach,"; //Can be any project name
+    let stateString = this.getStateString(this);
+
+    let output = "const fetchMachine = Machine({ id: 'mach',";
+    if (this.initial) {
+      output += "initial: '" + this.initial + "',";
+    }
+    output += "context:{},";
+    if (this.states.length > 0) {
+      output += "states:{" + stateString + "}";
+    } else {
+      output += stateString;
+    }
+    output += "});"; //Can be any project name
+    //output still needs initial
+    this.code = output;
+    return this.code;
   }
 }
 
@@ -80,7 +142,7 @@ export const XMachine = createMachine(
     initial: "main",
     context: {
       machine: new Machine(),
-      machineCode: "",
+      code: "",
     },
     states: {
       main: {
@@ -93,6 +155,9 @@ export const XMachine = createMachine(
           },
           ADD_STATE: {
             actions: "addState",
+          },
+          DELETE_TRANSITION: {
+            actions: "deleteTransition",
           },
           EXPORT_MACHINE: {
             actions: "exportMachine",
@@ -121,6 +186,16 @@ export const XMachine = createMachine(
           return context.machine;
         },
       }),
+
+      deleteTransition: assign({
+        machine: (context, event) => {
+          console.log(event.payload);
+          let currentState = context.machine.findState(event.payload.stateName);
+          currentState.deleteTransition(event.payload.eventName);
+          return context.machine;
+        },
+      }),
+
       addState: assign({
         machine: (context, event) => {
           //I'm going to need to pass in the hierarchy of the object as the payload
@@ -149,10 +224,10 @@ export const XMachine = createMachine(
         },
       }),
       exportMachine: assign({
-        machineCode: (context, event) => {
-          context.machineCode = context.machine.exportCode();
-          console.log(context.machineCode);
-          return context.machineCode;
+        code: (context, event) => {
+          context.code = context.machine.exportMachine();
+          console.log(context.code);
+          return context.code;
         },
       }),
     },

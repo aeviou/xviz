@@ -1,17 +1,16 @@
 <script>
-  import { useMachine } from "@xstate/svelte";
-  import { assign } from "svelte/internal";
-  import { Machine } from "xstate";
-  import { XMachine } from "./machines/XMachine.js";
   export let state;
   export let send;
   export let currentState;
   export let parentState;
   import Modal, { getModal } from "./Modal.svelte";
+  import Transition from "./Transition.svelte";
+
   let selectedEvent;
   let selectedTargetState;
   let stateName = "";
   let eventName = "";
+  let modalID = currentState.id + "2";
 </script>
 
 <div>
@@ -59,10 +58,21 @@
     />
   {/each}
 
-  <button on:click={() => getModal().open()}> Add Transition </button>
+  <button
+    on:click={() => {
+      console.log(currentState.id);
+      getModal(currentState.id).open();
+    }}
+  >
+    Add Transition
+  </button>
+
+  {#each currentState.on as transition}
+    <Transition {currentState} {transition} {state} {send} />
+  {/each}
 
   <!-- the modal without an `id` -->
-  <Modal>
+  <Modal id={currentState.id}>
     <h1>Transition to which state?</h1>
     <!-- opening a model with an `id` and specifying a callback	 -->
 
@@ -78,7 +88,13 @@
       <p>No Events</p>
     {/if}
 
-    <button on:click={() => getModal("second").open()}> Add New Event </button>
+    <button
+      on:click={() => {
+        getModal(modalID).open();
+      }}
+    >
+      Add New Event
+    </button>
     <br />
     <p>Target State:</p>
     <select bind:value={selectedTargetState} id="levelStates">
@@ -89,18 +105,20 @@
     <hr />
     <button
       on:click={() => {
-        console.log(state);
-        console.log(parentState.states[selectedTargetState]);
+        if ($state.context.machine.events[selectedEvent]) {
+          send({
+            type: "ADD_TRANSITION",
+            payload: {
+              stateName: currentState.id,
+              targetState: parentState.states[selectedTargetState].id,
+              eventName: $state.context.machine.events[selectedEvent],
+            },
+          });
 
-        send({
-          type: "ADD_TRANSITION",
-          payload: {
-            stateName: currentState.id,
-            targetState: parentState.states[selectedTargetState].id,
-            eventName: $state.context.machine.events[selectedEvent],
-          },
-        });
-        getModal("").close();
+          getModal(currentState.id).close();
+        } else {
+          alert("There's no selected event!");
+        }
       }}
     >
       Add Transition
@@ -108,7 +126,7 @@
     <!-- On click this button should add the new state transition based on the event -->
   </Modal>
 
-  <Modal id="second">
+  <Modal id={modalID}>
     <h1>Add New Event?</h1>
 
     <!-- Passing a value back to the callback function	 -->
@@ -122,13 +140,17 @@
     <button
       class="green"
       on:click={() => {
-        send({
-          type: "ADD_EVENT",
-          payload: {
-            eventName: eventName,
-          },
-        });
-        getModal("second").close();
+        if (eventName.trim() === "") {
+          alert("Events must have a name!");
+        } else {
+          send({
+            type: "ADD_EVENT",
+            payload: {
+              eventName: eventName,
+            },
+          });
+          getModal(modalID).close();
+        }
       }}
     >
       Add Event
